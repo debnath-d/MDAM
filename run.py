@@ -15,7 +15,9 @@ from reinforce_baselines import (
     RolloutBaseline,
     WarmupBaseline,
 )
-from tensorboard_logger import Logger as TbLogger
+
+# from tensorboard_logger import Logger as TbLogger
+from torch.utils.tensorboard import SummaryWriter
 from train import get_inner_model, train_epoch, validate
 from utils import load_problem, torch_load_cpu
 
@@ -30,8 +32,8 @@ def run(opts):
     # Optionally configure tensorboard
     tb_logger = None
     if not opts.no_tensorboard:
-        tb_logger = TbLogger(
-            os.path.join(
+        tb_logger = SummaryWriter(
+            log_dir=os.path.join(
                 opts.log_dir,
                 "{}_{}".format(opts.problem, opts.graph_size),
                 opts.run_name,
