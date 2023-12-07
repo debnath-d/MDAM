@@ -275,7 +275,7 @@ class AttentionModel(nn.Module):
             return costs, ll, reinforce_loss
 
         if return_pi:
-            return costs, lls, pis
+            return costs, lls, pi
 
         if return_kl:
             return costs, lls, loss_kl_divergence
