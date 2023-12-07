@@ -1,7 +1,8 @@
-import torch
 from typing import NamedTuple
-from utils.boolmask import mask_long2bool, mask_long_scatter
+
+import torch
 import torch.nn.functional as F
+from utils.boolmask import mask_long2bool, mask_long_scatter
 
 
 class StateOP(NamedTuple):
@@ -33,10 +34,14 @@ class StateOP(NamedTuple):
 
     @property
     def dist(self):
-        return (self.coords[:, :, None, :] - self.coords[:, None, :, :]).norm(p=2, dim=-1)
+        return (self.coords[:, :, None, :] - self.coords[:, None, :, :]).norm(
+            p=2, dim=-1
+        )
 
     def __getitem__(self, key):
-        if torch.is_tensor(key) or isinstance(key, slice):  # If tensor, idx all tensors by this tensor:
+        if torch.is_tensor(key) or isinstance(
+            key, slice
+        ):  # If tensor, idx all tensors by this tensor:
             return self._replace(
                 ids=self.ids[key],
                 prev_a=self.prev_a[key],
@@ -53,34 +58,45 @@ class StateOP(NamedTuple):
 
     @staticmethod
     def initialize(input, visited_dtype=torch.uint8):
-        depot = input['depot']
-        loc = input['loc']
-        prize = input['prize']
-        max_length = input['max_length']
+        depot = input["depot"]
+        loc = input["loc"]
+        prize = input["prize"]
+        max_length = input["max_length"]
 
         batch_size, n_loc, _ = loc.size()
         coords = torch.cat((depot[:, None, :], loc), -2)
         return StateOP(
             coords=coords,
-            prize=F.pad(prize, (1, 0), mode='constant', value=0),  # add 0 for depot
+            prize=F.pad(prize, (1, 0), mode="constant", value=0),  # add 0 for depot
             # max_length is max length allowed when arriving at node, so subtract distance to return to depot
             # Additionally, substract epsilon margin for numeric stability
-            max_length=max_length[:, None] - (depot[:, None, :] - coords).norm(p=2, dim=-1) - 1e-6,
-            ids=torch.arange(batch_size, dtype=torch.int64, device=loc.device)[:, None],  # Add steps dimension
+            max_length=max_length[:, None]
+            - (depot[:, None, :] - coords).norm(p=2, dim=-1)
+            - 1e-6,
+            ids=torch.arange(batch_size, dtype=torch.int64, device=loc.device)[
+                :, None
+            ],  # Add steps dimension
             prev_a=torch.zeros(batch_size, 1, dtype=torch.long, device=loc.device),
             visited_=(  # Visited as mask is easier to understand, as long more memory efficient
                 # Keep visited_ with depot so we can scatter efficiently (if there is an action for depot)
                 torch.zeros(
-                    batch_size, 1, n_loc + 1,
-                    dtype=torch.uint8, device=loc.device
+                    batch_size, 1, n_loc + 1, dtype=torch.uint8, device=loc.device
                 )
                 if visited_dtype == torch.uint8
-                else torch.zeros(batch_size, 1, (n_loc + 1 + 63) // 64, dtype=torch.int64, device=loc.device)  # Ceil
+                else torch.zeros(
+                    batch_size,
+                    1,
+                    (n_loc + 1 + 63) // 64,
+                    dtype=torch.int64,
+                    device=loc.device,
+                )  # Ceil
             ),
             lengths=torch.zeros(batch_size, 1, device=loc.device),
-            cur_coord=input['depot'][:, None, :],  # Add step dimension
+            cur_coord=input["depot"][:, None, :],  # Add step dimension
             cur_total_prize=torch.zeros(batch_size, 1, device=loc.device),
-            i=torch.zeros(1, dtype=torch.int64, device=loc.device)  # Vector with length num_steps
+            i=torch.zeros(
+                1, dtype=torch.int64, device=loc.device
+            ),  # Vector with length num_steps
         )
 
     def get_remaining_length(self):
@@ -88,13 +104,11 @@ class StateOP(NamedTuple):
         return self.max_length[self.ids, 0] - self.lengths
 
     def get_final_cost(self):
-
         assert self.all_finished()
         # The cost is the negative of the collected prize since we want to maximize collected prize
         return -self.cur_total_prize
 
     def update(self, selected):
-
         assert self.i.size(0) == 1, "Can only update if state represents single step"
 
         # Update the state
@@ -103,7 +117,9 @@ class StateOP(NamedTuple):
 
         # Add the length
         cur_coord = self.coords[self.ids, selected]
-        lengths = self.lengths + (cur_coord - self.cur_coord).norm(p=2, dim=-1)  # (batch_dim, 1)
+        lengths = self.lengths + (cur_coord - self.cur_coord).norm(
+            p=2, dim=-1
+        )  # (batch_dim, 1)
 
         # Add the collected prize
         cur_total_prize = self.cur_total_prize + self.prize[self.ids, selected]
@@ -117,8 +133,12 @@ class StateOP(NamedTuple):
             visited_ = mask_long_scatter(self.visited_, prev_a, check_unset=False)
 
         return self._replace(
-            prev_a=prev_a, visited_=visited_,
-            lengths=lengths, cur_coord=cur_coord, cur_total_prize=cur_total_prize, i=self.i + 1
+            prev_a=prev_a,
+            visited_=visited_,
+            lengths=lengths,
+            cur_coord=cur_coord,
+            cur_total_prize=cur_total_prize,
+            i=self.i + 1,
         )
 
     def all_finished(self):
@@ -143,7 +163,10 @@ class StateOP(NamedTuple):
         """
 
         exceeds_length = (
-            self.lengths[:, :, None] + (self.coords[self.ids, :, :] - self.cur_coord[:, :, None, :]).norm(p=2, dim=-1)
+            self.lengths[:, :, None]
+            + (self.coords[self.ids, :, :] - self.cur_coord[:, :, None, :]).norm(
+                p=2, dim=-1
+            )
             > self.max_length[self.ids, :]
         )
         # Note: this always allows going to the depot, but that should always be suboptimal so be ok
