@@ -215,6 +215,7 @@ class AttentionModel(nn.Module):
             loss_kl_divergence.backward()
 
         states = [self.problem.make_state(input) for i in range(self.n_paths)]
+        mask_first = mask
         for i in range(self.n_paths):
             output, sequence = [], []
             embeddings, init_context, attn, V, h_old = self.embedder(
@@ -223,6 +224,8 @@ class AttentionModel(nn.Module):
             fixed = self._precompute(embeddings, path_index=i)
             j = 0
             while not (self.shrink_size is None and states[i].all_finished()):
+                if j == 0:
+                    mask = mask_first
                 if j > 1 and j % n_EG == 0:
                     if not self.is_vrp:
                         mask_attn = mask ^ mask_first
@@ -233,8 +236,6 @@ class AttentionModel(nn.Module):
                     )
                     fixed = self._precompute(embeddings, path_index=i)
                 log_p, mask = self._get_log_p(fixed, states[i], i)
-                if j == 0:
-                    mask_first = mask
                 # Select the indices of the next nodes in the sequences, result (batch_size) long
                 selected = self._select_node(
                     log_p.exp()[:, 0, :], mask[:, 0, :]
