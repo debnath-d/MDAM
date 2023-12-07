@@ -90,7 +90,7 @@ class BatchBeam(NamedTuple):
                 parent=self.parent[key] if self.parent is not None else None,
                 action=self.action[key] if self.action is not None else None,
             )
-        return super(BatchBeam, self).__getitem__(key)
+        return self[key]
 
     # Do not use __len__ since this is used by namedtuple internally and should be number of fields
     # def __len__(self):
@@ -235,4 +235,4 @@ class CachedLookup(object):
 
             return self.current
 
-        return super(CachedLookup, self).__getitem__(key)
+        return self[key]
